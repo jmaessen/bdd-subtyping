@@ -110,10 +110,10 @@ inductive disj_free :: "nat \<Rightarrow> TR \<Rightarrow> BDD \<Rightarrow> boo
 
 declare disj_free.intros[simp, intro]
 
-lemma select_sf_preserve[simp]: "sub_free n tr t \<Longrightarrow> sub_free n tr e \<Longrightarrow> tr i n \<noteq> Subtype \<Longrightarrow> sub_free n tr (select i t e)"
+lemma select_sf_preserve: "sub_free n tr t \<Longrightarrow> sub_free n tr e \<Longrightarrow> tr i n \<noteq> Subtype \<Longrightarrow> sub_free n tr (select i t e)"
   using select_def by simp
 
-lemma select_df_preserve[simp]: "disj_free n tr t \<Longrightarrow> disj_free n tr e \<Longrightarrow> tr i n \<noteq> Disjoint \<Longrightarrow> disj_free n tr (select i t e)"
+lemma select_df_preserve: "disj_free n tr t \<Longrightarrow> disj_free n tr e \<Longrightarrow> tr i n \<noteq> Disjoint \<Longrightarrow> disj_free n tr (select i t e)"
   using select_def by simp
 
 fun erase_subtypes :: "nat \<Rightarrow> TR \<Rightarrow> BDD \<Rightarrow> BDD" where
@@ -227,30 +227,37 @@ fun common:: "nat \<Rightarrow> nat \<Rightarrow> TR \<Rightarrow> BDD \<Rightar
   "common _ c tr Nothing Top = None" |
   "common _ c tr Top Top = Some Top" |
   "common _ c tr Nothing Nothing = Some Nothing" |
-  "common 0 c tr _ _ = None" |
-  "common (Suc n) c tr (Select it tt et) (Select ie te ee) =
-     (if it > ie then
+  "common n c tr (Select it tt et) (Select ie te ee) =
+     (if n \<le> it \<or> n \<le> ie then
+        None
+      else if it > ie then
         (case tr it c of
-           Subtype \<Rightarrow> select' it (Some tt) (common n c tr et (Select ie te ee)) |
-           _ \<Rightarrow> select' it (common n c tr tt (erase_disjoints it tr (Select ie te ee)))
-                           (common n c tr et (erase_subtypes it tr (Select ie te ee))))
+           Subtype \<Rightarrow> select' it (Some tt) (common it c tr et (Select ie te ee)) |
+           _ \<Rightarrow> select' it (common it c tr tt (erase_disjoints it tr (Select ie te ee)))
+                           (common it c tr et (erase_subtypes it tr (Select ie te ee))))
       else if it = ie then
-        select' it (common n c tr tt te) (common n c tr et ee)
+        select' it (common it c tr tt te) (common it c tr et ee)
       else
         (case tr ie c of
-           Disjoint \<Rightarrow> select' ie (Some te) (common n c tr (Select it tt et) ee) |
-           _ \<Rightarrow> select' ie (common n c tr (erase_disjoints ie tr (Select it tt et)) te)
-                           (common n c tr (erase_subtypes ie tr (Select it tt et)) ee)))" |
-  "common (Suc n) c tr (Select it tt et) e =
-     (case tr it c of
-        Subtype \<Rightarrow> select' it (Some tt) (common n c tr et e) |
-        _ \<Rightarrow> select' it (common n c tr tt (erase_disjoints it tr e))
-                        (common n c tr et (erase_subtypes it tr e)))" |
-  "common (Suc n) c tr t (Select ie te ee) =
-     (case tr ie c of
-        Disjoint \<Rightarrow> select' ie (Some te) (common n c tr t ee) |
-        _ \<Rightarrow> select' ie (common n c tr (erase_disjoints ie tr t) te)
-                        (common n c tr (erase_subtypes ie tr t) ee))"
+           Disjoint \<Rightarrow> select' ie (Some te) (common ie c tr (Select it tt et) ee) |
+           _ \<Rightarrow> select' ie (common ie c tr (erase_disjoints ie tr (Select it tt et)) te)
+                           (common ie c tr (erase_subtypes ie tr (Select it tt et)) ee)))" |
+  "common n c tr (Select it tt et) e =
+     (if n \<le> it then
+        None
+      else
+        (case tr it c of
+           Subtype \<Rightarrow> select' it (Some tt) (common it c tr et e) |
+           _ \<Rightarrow> select' it (common it c tr tt (erase_disjoints it tr e))
+                           (common it c tr et (erase_subtypes it tr e))))" |
+  "common n c tr t (Select ie te ee) =
+     (if n \<le> ie then
+        None
+      else
+        (case tr ie c of
+           Disjoint \<Rightarrow> select' ie (Some te) (common ie c tr t ee) |
+           _ \<Rightarrow> select' ie (common ie c tr (erase_disjoints ie tr t) te)
+                           (common ie c tr (erase_subtypes ie tr t) ee)))"
 
 inductive pwfbdd :: "nat \<Rightarrow> TR \<Rightarrow> BDD \<Rightarrow> bool" where
   pwfbdd_sel[simp]: "n > i \<Longrightarrow> t \<noteq> e \<Longrightarrow>

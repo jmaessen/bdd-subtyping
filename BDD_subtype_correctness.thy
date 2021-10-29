@@ -140,8 +140,28 @@ lemma common_df_preserve: "disj_free n tr t \<Longrightarrow> disj_free n tr e \
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) disj_free.simps erase_disj_df_preserve erase_subtypes_df_preserve select'_df_preserve select_df_preserve)
   done
 
+lemma common_pwfbdd_preserve:
+  "n \<le> i \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> common n i tr t e = Some r \<Longrightarrow> pwfbdd n tr r"
+  apply (induction n i tr t e arbitrary: r rule: common.induct)
+  apply auto[4]
+  apply (simp_all only: common.simps if_False)
+  (* 5/5 *)
+  apply (subgoal_tac "~(n \<le> it \<or> n \<le> ie)")
+  prefer 2
+  apply (metis option.distinct(1))
+  (*
+  apply (subgoal_tac "(n \<le> it \<or> n \<le> ie) = False")
+  prefer 2
+  apply (metis option.discI)
+  apply (case_tac "ie < it")
+  *)
+  using [[simp_depth_limit=1]] apply (simp only: not_le common.simps if_False if_True not_False_eq_True not_True_eq_False)
+  
+  apply simp
+  done
+
 lemma common_nothing [simp]:
-  "well_formed_tr c tr \<Longrightarrow> n \<le> c \<Longrightarrow> sub_free c tr e \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> (case common n c tr Nothing e of Some s \<Rightarrow> erase_disjoints c tr s = Nothing | None \<Rightarrow> True)"
+  "n \<le> c \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> (case common n c tr Nothing e of Some s \<Rightarrow> erase_disjoints c tr s = Nothing | None \<Rightarrow> True)"
   apply (induction e arbitrary: n)
   apply auto
   (* e \<Longrightarrow> Select i t e *)
@@ -149,12 +169,6 @@ lemma common_nothing [simp]:
   apply (case_tac n)
   apply auto
   apply (rename_tac "n")
-  apply (subgoal_tac "sub_free c tr t")
-  prefer 2
-  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) sub_free.cases)
-  apply (subgoal_tac "sub_free c tr e")
-  prefer 2
-  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) sub_free.cases)
   apply (subgoal_tac "pwfbdd n tr t")
   prefer 2
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_Suc_eq_le pwf_weaken pwfbdd.simps)
@@ -165,69 +179,44 @@ lemma common_nothing [simp]:
   apply (auto simp add: select'_def)
   (* 6 cases *)
   (* 1/6 *)
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
+  apply (metis option.case_eq_if option.distinct(1))
   (* 2/6 *)
   apply (metis (no_types, lifting) option.case_eq_if option.distinct(1))
   (* 3/6 *)
-  apply (case_tac "common n c tr Nothing t")
-  apply auto
-  apply (case_tac "common n c tr Nothing e")
-  (* 3: 1/4 *)
-  apply auto
-  (* 3: 2/4 *)
-  apply (smt (verit) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) less_Suc_eq_le option.simps(5) pwfbdd.simps wftr_refl0)
-  (* 3: 3/4 *)
-  apply (metis option.case_eq_if option.distinct(1))
-  (* 3: 4/4 *)
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
-  (* 4/5 *)
   apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
-  (* 5/5 *)
+  (* 4/6 *)
+  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
+  (* 5/6 *)
+  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
+  (* 6/6 *)
   apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
   done
 
 lemma common_t_nothing [simp]:
-  "well_formed_tr c tr \<Longrightarrow> n \<le> c \<Longrightarrow> sub_free c tr t \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> common n c tr t Nothing = Some s \<Longrightarrow> erase_disjoints c tr s = Nothing"
+  "n \<le> c \<Longrightarrow> sub_free c tr t \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> common n c tr t Nothing = Some s \<Longrightarrow> erase_disjoints c tr s = Nothing"
   apply (induction t arbitrary: n s)
   apply auto
   (* t \<Longrightarrow> Select i t e *)
-  apply (rename_tac "i" "t" "e" "n" "s")
-  apply (case_tac n)
-  apply auto
-  apply (rename_tac "n")
+  apply (rename_tac i t e n s)
   apply (subgoal_tac "sub_free c tr t")
   prefer 2
   apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) sub_free.cases)
   apply (subgoal_tac "sub_free c tr e")
   prefer 2
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
-  apply (subgoal_tac "pwfbdd n tr t")
+  apply (subgoal_tac "i < n")
   prefer 2
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_Suc_eq_le pwf_weaken pwfbdd.simps)
-  apply (subgoal_tac "pwfbdd n tr e")
-  prefer 2
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_Suc_eq_le pwf_weaken pwfbdd.simps)
-  apply (simp split: Relatedness.splits option.splits)
-  apply (auto simp add: select'_def)
+  apply (metis leI option.simps(3))
+  apply auto
+  apply (case_tac "tr i c")
+  apply auto[3]
   (* 3 cases *)
   (* 3/3 *)
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
   (* 2/3 *)
-  apply (case_tac "common n c tr t Nothing")
-  apply auto
-  apply (rename_tac "tt")
-  apply (case_tac "common n c tr e Nothing")
-  apply auto
-  apply (rename_tac "ee")
-  apply (metis BDD_select.select_def Suc_leD erase_disjoints.simps(1))
+  apply (smt (verit) BDD.distinct(3) BDD.distinct(5) BDD.inject BDD_select.select_def erase_disjoints.elims less_le_trans less_or_eq_imp_le pwfbdd.cases select'_some)
   (* 1/3 *)
-  apply (case_tac "common n c tr t Nothing")
-  apply auto
-  apply (rename_tac "tt")
-  apply (case_tac "common n c tr e Nothing")
-  apply auto
-  apply (rename_tac "ee")
-  apply (smt (z3) BDD_select.select_def Suc_leD erase_disjoints.simps(1))
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) BDD_select.select_def erase_disjoints.simps(1) le_less less_le_trans pwfbdd.simps select'_some)
   done
 
 lemma pwfbdd_1:
@@ -250,7 +239,7 @@ lemma pwfbdd_1:
 lemma select'_some: "tt = Some t \<Longrightarrow> ee = Some e \<Longrightarrow> z = select i t e \<Longrightarrow> select' i tt ee = Some z"
   by auto
 
-lemma common_idem:
+lemma common_refl:
   "well_formed_tr c tr \<Longrightarrow> n \<le> c \<Longrightarrow>
    pwfbdd c tr a \<Longrightarrow> pwfbdd n tr a \<Longrightarrow>
    common n c tr a a = Some a"
@@ -259,7 +248,9 @@ lemma common_idem:
   apply (case_tac n)
   apply auto
   apply (metis BDD.distinct(5) BDD.simps(5) less_zeroE pwfbdd.simps)
-  by (metis BDD.distinct(3) BDD.inject BDD.simps(7) Suc_leD less_Suc_eq_le pwf_is_norm pwf_weaken pwfbdd.cases select'_some_some_some select_noop)
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) leD pwfbdd.simps)
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) BDD_select.select_def dual_order.strict_implies_order pwf_weaken pwfbdd.cases select'_some_some_some)
+  done
 
 theorem select_is_top: "select i t e = Top \<Longrightarrow> t = Top \<and> e = Top"
   by (metis BDD.distinct(5) BDD_select.select_def)
@@ -298,6 +289,39 @@ lemma erase_exchange:
   apply (auto simp add: select_def)
   done
 
+lemma common_dom_e:
+  "n > ie \<Longrightarrow> pwfbdd ie tr t \<Longrightarrow>
+   common n c tr t (Select ie te ee) =
+     (case tr ie c of
+        Disjoint \<Rightarrow> select' ie (Some te) (common ie c tr t ee) |
+        _ \<Rightarrow> select' ie (common ie c tr (erase_disjoints ie tr t) te)
+                        (common ie c tr (erase_subtypes ie tr t) ee))"
+  apply (case_tac t)
+  using pwfbdd.cases apply auto
+  using pwfbdd.cases apply fastforce
+  using pwfbdd.cases apply fastforce
+  done
+
+lemma common_erase_disjoints_t:
+  "i < c \<Longrightarrow> pwfbdd i tr t \<Longrightarrow> pwfbdd i tr e \<Longrightarrow> disj_free i tr e \<Longrightarrow>
+   common i c tr t e = Some r \<Longrightarrow>
+   common i c tr (erase_disjoints i tr t) e
+     = Some (erase_disjoints i tr r)"
+  apply (induction t arbitrary: e)
+  apply auto
+  apply (subgoal_tac "disj_free i tr r")
+  prefer 2
+  apply (metis common_df_preserve disj_free.simps disj_free_opt.cases option.discI option.inject)
+  apply (subgoal_tac "pwfbdd i tr r")
+  prefer 2
+  sledgehammer
+  
+  apply (subgoal_tac "erase_disjoints i tr r = Nothing")
+  prefer 2
+  sledgehammer
+  done
+
+
 theorem common_correct_a:
   "erasures c tr s t e \<Longrightarrow>
    well_formed_tr c tr \<Longrightarrow> n \<le> c \<Longrightarrow>
@@ -310,30 +334,34 @@ theorem common_correct_a:
   (* 8/8 *)
   apply (case_tac n)
   apply auto
-  apply (metis common.simps(8) common_idem le0 option.distinct(1))
-  apply (rename_tac n)
-  apply (case_tac "\<exists>y. common n c tr td ts = Some y")
-  prefer 2  
-  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_disj_disj_free erase_subtypes_sub_free erasures_erase less_Suc_eq_le pwf_weaken pwfbdd.cases)
-  apply (case_tac "\<exists>y. common n c tr ed es = Some y")
-  prefer 2  
-  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_disj_disj_free erase_subtypes_sub_free erasures_erase less_Suc_eq_le pwf_weaken pwfbdd.cases)
-  apply auto[1]
+  apply (metis BDD.distinct(5) BDD.simps(5) less_zeroE pwfbdd.simps)
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) leD pwfbdd.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) disj_free.cases dual_order.strict_iff_order pwf_weaken pwfbdd.simps select'_some_some_some sub_free.simps)
   (* 7/8 *)
-  apply (case_tac n)
-  apply auto
-  apply (metis common.simps(8) common_idem le0 option.distinct(1))
-  apply (rename_tac n)
-  apply (case_tac "\<exists>y. common n c tr d ts = Some y")
+  apply (case_tac "pwfbdd i tr d")
   prefer 2
-  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_disjoints_pwf erase_subtypes_sub_free erasures_erase leD not_None_eq not_less_eq_eq pwf_weaken pwfbdd.cases)
-  apply (case_tac "\<exists>y. common n c tr d es = Some y")
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) dual_order.asym erase_disjoints_pwf erasures_erase leI pwfbdd.simps)
+  apply (case_tac "
+     common n c tr d (Select i ts es) =
+        (case tr i c of
+           Disjoint \<Rightarrow> select' i (Some ts) (common i c tr d es) |
+           _ \<Rightarrow> select' i (common i c tr (erase_disjoints i tr d) ts)
+                           (common i c tr (erase_subtypes i tr d) es))")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.inject BDD.simps(7) common_dom_e pwfbdd.cases)
+  apply simp
+  apply (case_tac "\<exists>y. common i c tr d ts = Some y")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_subtypes_sub_free erasures_erase leD not_None_eq not_less_eq_eq pwf_weaken pwfbdd.cases)
+  apply (case_tac "\<exists>y. common i c tr d es = Some y")
   prefer 2  
-  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_disjoints_pwf erase_subtypes_sub_free erasures_erase leD not_None_eq not_less_eq_eq pwf_weaken pwfbdd.cases)
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Suc_leD erase_subtypes_sub_free erasures_erase leD not_None_eq not_less_eq_eq pwf_weaken pwfbdd.cases)
   apply auto[1]
   apply (rename_tac ty ey)
   apply (case_tac d)
   apply auto[2]
+  apply (metis common.simps(5) common_refl option.distinct(1))
+  apply (metis common.simps(5) common_refl option.distinct(1))
   apply (rename_tac j tt ee)
   apply simp
   apply (subgoal_tac "j \<le> i")
@@ -344,7 +372,12 @@ theorem common_correct_a:
   apply (metis BDD.distinct(3) BDD.inject BDD.simps(7) dual_order.strict_iff_order pwfbdd.cases wftr_symm wftr_weaken)
   apply simp
   apply auto[1]
+  apply (metis common.simps(5) common_refl option.distinct(1))
+  apply (metis common.simps(5) common_refl option.distinct(1))
   sledgehammer
+  apply (metis common.simps(5) common_refl option.distinct(1))
+  apply (metis common.simps(5) common_refl option.distinct(1))
+  apply (metis common.simps(5) common_refl option.distinct(1))
   (* 6/8 *)
   (* 5/8 *)
   oops
