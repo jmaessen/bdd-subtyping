@@ -73,6 +73,10 @@ lemma common_sf_preserve: "sub_free n tr t \<Longrightarrow> sub_free n tr e \<L
   apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject erase_disj_sf_preserve erase_subtypes_sf_preserve select'_sf_preserve select_sf_preserve sub_free.cases)
   done
 
+lemma common_sf: "sub_free n tr t \<Longrightarrow> sub_free n tr e \<Longrightarrow> common m i tr t e = Some s \<Longrightarrow> sub_free n tr s"
+  by (metis common_sf_preserve option.distinct(1) option.sel sub_free_opt.cases)
+
+
 lemma common_df_preserve: "disj_free n tr t \<Longrightarrow> disj_free n tr e \<Longrightarrow> disj_free_opt n tr (common m i tr t e)"
   apply (induction m i tr t e rule: common.induct)
   apply (simp_all split: Relatedness.split)
@@ -140,8 +144,37 @@ lemma common_df_preserve: "disj_free n tr t \<Longrightarrow> disj_free n tr e \
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) disj_free.simps erase_disj_df_preserve erase_subtypes_df_preserve select'_df_preserve select_df_preserve)
   done
 
+lemma common_df: "disj_free n tr t \<Longrightarrow> disj_free n tr e \<Longrightarrow> common m i tr t e = Some s \<Longrightarrow> disj_free n tr s"
+  by (metis common_df_preserve option.distinct(1) option.sel disj_free_opt.cases)
+
+
+lemma subtype_erases_subtype:
+  "sub_free n tr t \<Longrightarrow> well_formed_tr n tr \<Longrightarrow> pwfbdd i tr t \<Longrightarrow>
+   i \<le> n \<Longrightarrow> tr i n = Subtype \<Longrightarrow> sub_free i tr t"
+  apply (induction n tr t rule: sub_free.induct)
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject less_imp_le_nat pwf_weaken pwfbdd.cases sub_free_sel wftr3_trans wftr_wftr3)
+  apply blast
+  apply blast
+  done
+
+lemma disjoint_erases_disjoint_lt:
+  "disj_free n tr t \<Longrightarrow> well_formed_tr n tr \<Longrightarrow> pwfbdd i tr t \<Longrightarrow>
+   i \<le> n \<Longrightarrow> tr i n = Disjoint \<Longrightarrow> sub_free i tr t"
+  apply (induction n tr t rule: disj_free.induct; blast?)
+  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) leD linear pwf_weaken pwfbdd.cases sub_free_sel wftr_refl0 wftr_sub_disj)
+  done
+  
+lemma disjoint_erases_disjoint_gt:
+  "disj_free i tr t \<Longrightarrow> well_formed_tr n tr \<Longrightarrow> pwfbdd i tr t \<Longrightarrow>
+   i \<le> n \<Longrightarrow> tr i n = Disjoint \<Longrightarrow> sub_free n tr t"
+  apply (induction i tr t rule: disj_free.induct; blast?)
+  apply (smt (verit) BDD.inject dual_order.trans le_cases3 order.strict_iff_order pwf_weaken pwfbdd.simps sub_free.simps wftr_refl0 wftr_sub_disj wftr_weaken)
+  done
+  
+
 lemma common_pwfbdd_preserve:
-  "n \<le> i \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> common n i tr t e = Some r \<Longrightarrow> pwfbdd n tr r"
+  "well_formed_tr i tr \<Longrightarrow> n \<le> i \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> 
+   disj_free i tr t \<Longrightarrow> sub_free i tr e \<Longrightarrow> common n i tr t e = Some r \<Longrightarrow> pwfbdd n tr r"
   apply (induction n i tr t e arbitrary: r rule: common.induct)
   apply auto[4]
   apply (simp_all only: common.simps if_False)
@@ -149,74 +182,69 @@ lemma common_pwfbdd_preserve:
   apply (subgoal_tac "~(n \<le> it \<or> n \<le> ie)")
   prefer 2
   apply (metis option.distinct(1))
-  (*
-  apply (subgoal_tac "(n \<le> it \<or> n \<le> ie) = False")
-  prefer 2
-  apply (metis option.discI)
-  apply (case_tac "ie < it")
-  *)
   using [[simp_depth_limit=1]] apply (simp only: not_le common.simps if_False if_True not_False_eq_True not_True_eq_False)
-  
-  apply simp
+  apply simp_all
+  apply auto
+  apply (case_tac "ie < it")
+  (* 5: 6 *)
+  apply (case_tac "tr it c")
+  (* 5: 8 *)
+  apply auto[1]
+  apply (case_tac "common it c tr et (Select ie te ee)")
+  apply auto[2]
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_sf disj_free.simps le_trans nat_le_linear pwfbdd.simps select_pwf subtype_erases_subtype)
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) disj_free.cases)
+  (* 5: 8 *)
+  apply auto[1]
+  apply (case_tac "tr ie it")
+  apply (auto simp add: select'_def split: option.splits)[3]
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) Relatedness.distinct(1) common_df common_sf disj_free.cases erase_disj_df_preserve erase_disj_disj_free erase_disj_sf_preserve erase_disjoints_pwf erase_subtypes_pwf erase_subtypes_sf_preserve erase_subtypes_sub_free le_cases3 order.strict_iff_order pwf_weaken pwfbdd.simps select_df_preserve select_pwf select_sf_preserve sub_free.simps)
+  apply (smt (verit) BDD.distinct(3) BDD.distinct(5) BDD.inject Relatedness.distinct(1) common_df common_sf disj_free.cases erase_disj_disj_free erase_disj_sf_preserve erase_disjoints_pwf erase_subtypes_df_preserve erase_subtypes_pwf erase_subtypes_sf_preserve erase_subtypes_sub_free le_cases3 less_imp_le_nat pwf_weaken pwfbdd.cases select_pwf select_sf_preserve sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) Relatedness.distinct(3) common_df common_sf disj_free.simps erase_disj_df_preserve erase_disj_disj_free erase_disj_sf_preserve erase_disjoints_pwf erase_subtypes_df_preserve erase_subtypes_pwf erase_subtypes_sf_preserve erase_subtypes_sub_free nat_less_le pwfbdd.simps select_df_preserve select_pwf select_sf_preserve sub_free.simps)
+  (* 5: 5 *)
+  apply auto[1]
+  apply (case_tac "it = ie")
+  apply (auto simp add: split: Relatedness.splits bool.splits)[2]
+  (* 5: 8 *)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.cases pwfbdd.cases select'_some select_pwf sub_free.simps)
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_sf disjoint_erases_disjoint_lt less_le linear option.inject order.trans pwfbdd.simps pwfbdd_sel select'_some select_pwf sub_free.simps)
+  (* 5: 5 *)
+  apply (auto simp add: select'_def split: option.splits bool.splits)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps erase_disj_df_preserve erase_disj_disj_free erase_disj_sf_preserve erase_disjoints_pwf erase_subtypes_df_preserve erase_subtypes_pwf erase_subtypes_sf_preserve erase_subtypes_sub_free not_le_imp_less not_less_iff_gr_or_eq pwf_weaken pwfbdd.simps select_df_preserve select_pwf select_sf_preserve sub_free.simps)
+  (* 4/5 *)
+  apply (case_tac "n \<le> it")
+  apply (auto simp add: select'_def split: Relatedness.splits bool.splits option.splits)[2]
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) common_sf disj_free.cases pwfbdd.simps select_pwf sub_free_nothing)
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) disj_free.cases)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  (* 3/5 *)
+  apply (case_tac "n \<le> it")
+  apply (auto simp add: select'_def split: Relatedness.splits bool.splits option.splits)[2]
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  (* 2/5 *)
+  apply (case_tac "n \<le> ie")
+  apply (auto simp add: select'_def split: Relatedness.splits bool.splits option.splits)[2]
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  (* 1/5 *)
+  apply (case_tac "n \<le> ie")
+  apply (auto simp add: select'_def split: Relatedness.splits bool.splits option.splits)[2]
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) common_df common_sf disj_free.simps pwfbdd.simps select_pwf sub_free.simps)
   done
 
 lemma common_nothing [simp]:
-  "n \<le> c \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> (case common n c tr Nothing e of Some s \<Rightarrow> erase_disjoints c tr s = Nothing | None \<Rightarrow> True)"
-  apply (induction e arbitrary: n)
-  apply auto
-  (* e \<Longrightarrow> Select i t e *)
-  apply (rename_tac "i" "t" "e" "n")
-  apply (case_tac n)
-  apply auto
-  apply (rename_tac "n")
-  apply (subgoal_tac "pwfbdd n tr t")
-  prefer 2
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_Suc_eq_le pwf_weaken pwfbdd.simps)
-  apply (subgoal_tac "pwfbdd n tr e")
-  prefer 2
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_Suc_eq_le pwf_weaken pwfbdd.simps)
-  apply (simp split: Relatedness.splits option.splits)
-  apply (auto simp add: select'_def)
-  (* 6 cases *)
-  (* 1/6 *)
-  apply (metis option.case_eq_if option.distinct(1))
-  (* 2/6 *)
-  apply (metis (no_types, lifting) option.case_eq_if option.distinct(1))
-  (* 3/6 *)
-  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
-  (* 4/6 *)
-  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
-  (* 5/6 *)
-  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
-  (* 6/6 *)
-  apply (smt (verit, ccfv_threshold) BDD.inject BDD.simps(5) BDD.simps(7) BDD_select.select_def Suc_leD dual_order.trans erase_disjoints.simps(1) option.case_eq_if option.distinct(1) option.sel order.strict_implies_order pwfbdd.simps wftr_refl0)
-  done
-
-lemma common_t_nothing [simp]:
-  "n \<le> c \<Longrightarrow> sub_free c tr t \<Longrightarrow> pwfbdd n tr t \<Longrightarrow> common n c tr t Nothing = Some s \<Longrightarrow> erase_disjoints c tr s = Nothing"
-  apply (induction t arbitrary: n s)
-  apply auto
-  (* t \<Longrightarrow> Select i t e *)
-  apply (rename_tac i t e n s)
-  apply (subgoal_tac "sub_free c tr t")
-  prefer 2
-  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) sub_free.cases)
-  apply (subgoal_tac "sub_free c tr e")
-  prefer 2
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
-  apply (subgoal_tac "i < n")
-  prefer 2
-  apply (metis leI option.simps(3))
-  apply auto
-  apply (case_tac "tr i c")
-  apply auto[3]
-  (* 3 cases *)
-  (* 3/3 *)
-  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) sub_free.simps)
-  (* 2/3 *)
-  apply (smt (verit) BDD.distinct(3) BDD.distinct(5) BDD.inject BDD_select.select_def erase_disjoints.elims less_le_trans less_or_eq_imp_le pwfbdd.cases select'_some)
-  (* 1/3 *)
-  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) BDD_select.select_def erase_disjoints.simps(1) le_less less_le_trans pwfbdd.simps select'_some)
+  "pwfbdd n tr e \<Longrightarrow> n \<le> c \<Longrightarrow> common n c tr Nothing e = Some s \<Longrightarrow> erase_disjoints c tr s = Nothing"
+  apply (induction n tr e arbitrary: s rule: pwfbdd.induct)
+  apply (auto simp add: select'_def split: Relatedness.splits option.splits)
+  apply (simp add: BDD_select.select_def)
+  apply (simp add: BDD_select.select_def)
+  apply (simp add: BDD_select.select_def)
   done
 
 lemma pwfbdd_1:
@@ -255,17 +283,6 @@ lemma common_refl:
 theorem select_is_top: "select i t e = Top \<Longrightarrow> t = Top \<and> e = Top"
   by (metis BDD.distinct(5) BDD_select.select_def)
 
-nitpick_params [timeout=30]
-
-sledgehammer_params [timeout=30]
-
-lemma disj_free_subty:
-  "well_formed_tr c tr \<Longrightarrow> pwfbdd c tr t \<Longrightarrow> i < c \<Longrightarrow>
-   disj_free i tr t \<Longrightarrow> tr i c = Subtype \<Longrightarrow> disj_free c tr t"
-  apply (induction t arbitrary: c)
-  apply auto
-  by (smt (verit, best) BDD.distinct(3) BDD.inject BDD.simps(7) disj_free.cases disj_free_sel less_or_eq_imp_le pwf_weaken pwfbdd.cases wftr_sub_disj)
-
 lemma sub_free_erase_subty:
   "well_formed_tr c tr \<Longrightarrow> pwfbdd c tr t \<Longrightarrow>
    disj_free c tr t \<Longrightarrow> erase_disjoints c tr t = t"
@@ -302,38 +319,136 @@ lemma common_dom_e:
   using pwfbdd.cases apply fastforce
   done
 
-lemma common_erase_disjoints_t:
-  "i < c \<Longrightarrow> pwfbdd i tr t \<Longrightarrow> pwfbdd i tr e \<Longrightarrow> disj_free i tr e \<Longrightarrow>
-   common i c tr t e = Some r \<Longrightarrow>
-   common i c tr (erase_disjoints i tr t) e
-     = Some (erase_disjoints i tr r)"
-  apply (induction t arbitrary: e)
-  apply auto
-  apply (subgoal_tac "disj_free i tr r")
-  prefer 2
-  apply (metis common_df_preserve disj_free.simps disj_free_opt.cases option.discI option.inject)
-  apply (subgoal_tac "pwfbdd i tr r")
-  prefer 2
-  sledgehammer
-  
-  apply (subgoal_tac "erase_disjoints i tr r = Nothing")
-  prefer 2
-  sledgehammer
-  done
-
 
 theorem common_correct_a:
   "erasures c tr s t e \<Longrightarrow>
    well_formed_tr c tr \<Longrightarrow> n \<le> c \<Longrightarrow>
    disj_free c tr t \<Longrightarrow> sub_free c tr e \<Longrightarrow>
-   pwfbdd c tr t \<Longrightarrow> pwfbdd c tr e \<Longrightarrow> pwfbdd c tr s \<Longrightarrow>
    pwfbdd n tr t \<Longrightarrow> pwfbdd n tr e \<Longrightarrow> pwfbdd n tr s \<Longrightarrow>
    common n c tr t e \<noteq> None"
   apply (induction s t e arbitrary: n rule: erasures.induct)
   apply simp_all
-  (* 8/8 *)
-  apply (case_tac n)
   apply auto
+  (* 9/9 *)
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) leD pwfbdd.simps)
+  (* 8/9 *)
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject dual_order.trans erase_disj_disj_free erase_subtypes_sub_free erasures_erase le_cases not_None_eq option.distinct(1) pwfbdd.cases select'_some_some_some)
+  (* 7/9 *)
+  apply (rename_tac et ee t t0 e n)
+  apply (case_tac t0)
+  (* 7: 9 *)
+  apply auto[1]
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply auto[1]
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  (* 7: 7 *)
+  apply (rename_tac v tt te)
+  apply auto
+  (* 7: 30 *)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  (* 7: 21 *)
+  apply (subgoal_tac "sub_free i tr tt")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.inject BDD.simps(7) disjoint_erases_disjoint_gt leI le_cases pwfbdd.cases wftr_weaken)
+  apply (auto simp add: select'_def split: option.split)
+  (* 7: 28 *)
+  apply (subgoal_tac "\<exists>y. common n c tr (Select v tt te)
+                  et =
+                 Some y")
+  prefer 2
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) nat_le_linear pwf_weaken pwfbdd.simps sub_free.cases)
+  sledgehammer
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  (* 7: 23 *)
+  apply (auto simp add: select'_def split: option.splits)
+  (* 7: 28 *)
+  defer
+  (* 7: 28 *)
+  sledgehammer
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (simp split: Relatedness.splits)
+  apply auto
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  sledgehammer
+  prefer 2
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject leD pwfbdd.cases)
+  prefer 2
+  apply (metis (no_types, hide_lams) BDD.distinct(3) BDD.distinct(5) BDD.inject common.simps(5) common_refl erase_disjoints_pwf erasures_erase leD le_cases option.distinct(1) pwf_weaken pwfbdd.cases)
+  prefer 2
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) dual_order.strict_iff_order pwf_weaken pwfbdd.cases select'_some_some_some sub_free.simps)
+  apply (metis BDD.distinct(5) BDD.inject BDD.simps(5) not_less pwfbdd.simps)
   apply (metis BDD.distinct(5) BDD.simps(5) less_zeroE pwfbdd.simps)
   apply (metis BDD.inject BDD.simps(5) BDD.simps(7) leD pwfbdd.simps)
   apply (smt (verit) BDD.distinct(5) BDD.inject BDD.simps(5) disj_free.cases dual_order.strict_iff_order pwf_weaken pwfbdd.simps select'_some_some_some sub_free.simps)
