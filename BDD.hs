@@ -211,8 +211,8 @@ common trd c t e@(Select ie te ee)
   | tr trd ie c == Disjoint = select' ie (Just te) (common trd c t ee)
   | otherwise = select' ie (common trd c t te) (common trd c t ee)
 
-prop_common_idem :: TR -> BDD -> Bool
-prop_common_idem tr bdd =
+prop_common_refl :: TR -> BDD -> Bool
+prop_common_refl tr bdd =
   case common tr (1 + root bdd) bdd bdd of
     Just bdd2 -> model_eq tr bdd bdd2
     Nothing -> False
@@ -224,20 +224,25 @@ prop_common tr (Select i t e) =
     Nothing -> property Discard
 prop_common _ _ = property Discard
 
-prop_common_correct_a :: TR -> BDD -> Bool
-prop_common_correct_a tr s =
+prop_common_complete :: TR -> BDD -> Bool
+prop_common_complete tr s =
   common tr c (erase_disjoints tr c s) (erase_subtypes tr c s) /= Nothing
   where c = root s + 1
 
-prop_erase_both_top :: TR -> BDD -> Property
-prop_erase_both_top tr s =
-  (erase_disjoints tr c s == Top && erase_subtypes tr c s == Top) ==> s == Top
-  where c = root s + 1
+prop_common_correct1 :: TR -> BDD -> BDD -> Property
+prop_common_correct1 tr t e =
+  let c = max (root t) (root e) + 1
+  in case common tr c t e of
+        Nothing -> property Discard
+        Just s -> property $ model_eq tr (Select c t e) s
 
-prop_erase_both_top_s :: BDD -> Property
-prop_erase_both_top_s s =
-  (erase_disjoints ttr c s == Top && erase_subtypes ttr c s == Top) ==> s == Top
-  where c = root s + 1
+prop_common_correct2 :: TR -> BDD -> Bool
+prop_common_correct2 tr s =
+  let c = max (root t) (root e) + 1
+      t = erase_disjoints tr c s
+      e = erase_subtypes tr c s
+      Just k = common tr c t e
+  in model_eq tr (Select c t e) k
 
 ttr = mkDag [(0, [0]), (1, [1]), (2, [0, 1, 2]), (3, [1, 3])]
 
@@ -250,8 +255,9 @@ qcs :: (Testable t) => Int -> t -> IO ()
 qcs s = quickCheckWith (stdArgs{ maxSuccess = 1000, maxSize = s, maxDiscardRatio = 3 })
 
 main = sequence_ [
-    qc prop_common_correct_a,
-    qc prop_common_idem,
+    -- qc prop_common_idem,
+    qc prop_common_complete,
+    qc prop_common_refl,
     qc prop_common,
     qc prop_erase_subtypes_root,
     qc prop_erase_disjoints_root,

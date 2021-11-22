@@ -372,4 +372,77 @@ lemma erase_erasures:
   apply (meson Relatedness.exhaust erase_sel_mi_ne erase_sel_sub_n)
   by (meson Relatedness.exhaust erase_sel_mi_nn)
 
+fun contains_exact :: "TR \<Rightarrow> BDD \<Rightarrow> nat \<Rightarrow> bool" where
+  "contains_exact tr Nothing _ = False" |
+  "contains_exact tr Top _ = True" |
+  "contains_exact tr (Select i t e) n =
+     (if n \<le> i \<and> tr n i = Subtype then contains_exact tr t n else contains_exact tr e n)"
+
+lemma contains_exact_select[simp]:
+  "contains_exact tr (select i t e) n = contains_exact tr (Select i t e) n"
+  apply (case_tac "t = e")
+  using select_def apply auto
+  done
+
+fun fv :: "BDD \<Rightarrow> nat set" where
+  "fv (Select i t e) = { i } \<union> fv t \<union> fv e" |
+  "fv _ = {}"
+
+lemma pwfbdd_fv: "pwfbdd c tr t \<Longrightarrow> i \<in> fv t \<Longrightarrow> i < c"
+  apply (induction t)
+  apply simp_all
+  apply (rename_tac v t e)
+  apply (subgoal_tac "pwfbdd c tr t")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply (subgoal_tac "pwfbdd c tr e")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply clarsimp
+  using pwfbdd.cases apply auto
+  done
+
+theorem erase_disjoints_sem[simp]:
+  "well_formed_tr c tr \<Longrightarrow> pwfbdd c tr t \<Longrightarrow> i \<le> c \<Longrightarrow>
+   tr i c = Subtype \<Longrightarrow>
+   contains_exact tr (erase_disjoints c tr t) i = contains_exact tr t i"
+  apply (induction t; clarsimp)
+  apply (rename_tac v t e)
+  apply (subgoal_tac "pwfbdd c tr t")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply (subgoal_tac "pwfbdd c tr e")
+  prefer 2
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply clarsimp
+  apply (thin_tac "contains_exact tr (erase_disjoints c tr _) _ = _")
+  apply (thin_tac "contains_exact tr (erase_disjoints c tr _) _ = _")
+  apply (case_tac "v < i"; clarsimp)
+  apply (metis BDD.distinct(3) BDD.distinct(5) BDD.inject Relatedness.distinct(1) leI less_or_eq_imp_le pwfbdd.cases wftr_refl0 wftr_sub_disj)
+  done
+
+theorem erase_subtypes_sem[simp]:
+  "well_formed_tr c tr \<Longrightarrow> pwfbdd c tr t \<Longrightarrow>
+   i > c \<or> tr i c \<noteq> Subtype \<Longrightarrow>
+   (contains_exact tr (erase_subtypes c tr t) i) = (contains_exact tr t i)"
+  apply (induction t)
+  apply simp_all
+  apply (rename_tac v t e)
+  apply (subgoal_tac "pwfbdd c tr t")
+  prefer 2
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply (subgoal_tac "pwfbdd c tr e")
+  prefer 2
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) less_or_eq_imp_le pwf_weaken pwfbdd.cases)
+  apply simp
+  apply (case_tac "tr i v")
+  apply simp_all
+  apply (case_tac "i \<le> v")
+  apply simp_all
+  apply (case_tac "v \<le> c")
+  apply simp_all
+  using wftr3_trans wftr_weaken wftr_wftr3 apply blast
+  apply (metis BDD.inject BDD.simps(5) BDD.simps(7) order.order_iff_strict pwfbdd.simps)
+  done
+
 end
